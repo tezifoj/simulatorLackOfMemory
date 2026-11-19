@@ -3,6 +3,7 @@
  */
 
 #ifndef MEMORY_H
+#include <stdint.h>
 #define MEMORY_H
 
 #define EMPTY (-1)   /* кадр свободен либо страница не в кадре */
@@ -28,5 +29,26 @@ Memory *create_memory(int pages_count, int frames_count);
 void free_memory(Memory *mem);
 
 void print_memory(const Memory *mem);
+
+#define OFFSET_BITS 12   /* размер страницы 4096 байт */
+
+/* что получилось при обращении */
+#define HIT         0    /* страница уже была в памяти */
+#define PAGE_FAULT  1    /* страницы не было -- загрузили */
+#define ACCESS_ERR (-1)  /* плохой адрес либо нет свободного кадра */
+
+/*
+ * Обращение к странице page_num
+ * is_write = 1 - запись, 0 - чтение
+ * Если страницы нет в памяти -- кладём её в свободный кадр
+ * Возвращает HIT, PAGE_FAULT или ACCESS_ERR
+ */
+int access_page(Memory *mem, int page_num, int is_write);
+
+/*
+ * Виртуальный адрес в физический
+ * Возвращает HIT, PAGE_FAULT или ACCESS_ERR
+ */
+int translate(Memory *mem, uint64_t virt_addr, int is_write, uint64_t *phys_addr);
 
 #endif

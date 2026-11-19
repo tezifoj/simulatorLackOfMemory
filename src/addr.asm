@@ -3,6 +3,7 @@
 section .text
 global get_page_number
 global get_offset
+global make_phys_addr
 
 get_page_number:
     mov rax, rdi        ; rax = addr
@@ -16,6 +17,14 @@ get_offset:
     shl rax, cl         ; rax = 1 << offset_bits
     dec rax             ; rax = маска
     and rax, rdi        ; rax = addr & маска
+    ret
+
+; Собирает физический адрес из номера кадра и смещения
+make_phys_addr:
+    mov rax, rdi        ; rax = frame
+    mov rcx, rdx
+    shl rax, cl
+    or  rax, rsi
     ret
 
 ; помечаем, что стек не должен быть исполняемым (иначе линкер ругается)
