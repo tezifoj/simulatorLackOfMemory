@@ -8,7 +8,7 @@
 #include "memory.h"
 #include "addr.h"
 
-Memory *create_memory(int pages_count, int frames_count) {
+Memory *create_memory(int pages_count, int frames_count, Algorithm algo) {
     if (pages_count <= 0 || frames_count <= 0) {
         return NULL;
     }
@@ -20,6 +20,9 @@ Memory *create_memory(int pages_count, int frames_count) {
 
     mem->pages_count = pages_count;
     mem->frames_count = frames_count;
+    mem->algo = algo;
+    mem->time = 0;
+    mem->removed_page = EMPTY;
 
     mem->pages = calloc(pages_count, sizeof(Page));
     mem->frames = malloc(frames_count * sizeof(int));
@@ -95,12 +98,54 @@ static void load_page(Memory *mem, int page_num, int frame_num) {
     p->used = 0;
     p->changed = 0;
     mem->frames[frame_num] = page_num;
+    p->load_time = mem->time;
+}
+
+/* FIFO: ищет кадр, где лежит страница, которую загрузили вначале */
+static int fifo_find_oldest(const Memory *mem) {
+    int oldest_frame = 0;
+    int oldest_time = mem->pages[mem->frames[0]].load_time;
+
+    for (int i = 1; i < mem->frames_count; i++) {
+        int page_num = mem->frames[i];
+        if (mem->pages[page_num].load_time < oldest_time) {
+            oldest_time = mem->pages[page_num].load_time;
+            oldest_frame = i;
+        }
+    }
+    return oldest_frame;
+}
+
+/* какой кадр освободить */
+static int find_frame_to_free(const Memory *mem) {
+    switch (mem->algo) {
+        case ALGO_FIFO:
+            return fifo_find_oldest(mem);
+    }
+    return 0;
+}
+
+/* удалить страницу из кадра frame_num */
+static void unload_page(Memory *mem, int frame_num) {
+    int page_num = mem->frames[frame_num];
+    Page *p = &mem->pages[page_num];
+
+    p->in_memory = 0;
+    p->frame_num = EMPTY;
+    p->used = 0;
+    p->changed = 0;
+
+    mem->frames[frame_num] = EMPTY;
+    mem->removed_page = page_num;
 }
 
 int access_page(Memory *mem, int page_num, int is_write) {
     if (page_num < 0 || page_num >= mem->pages_count) {
         return ACCESS_ERR;
     }
+
+    mem->time++;
+    mem->removed_page = EMPTY;
 
     Page *p = &mem->pages[page_num];
     int result = HIT;
@@ -110,7 +155,8 @@ int access_page(Memory *mem, int page_num, int is_write) {
 
         int frame = find_free_frame(mem);
         if (frame == EMPTY) {
-            return ACCESS_ERR;   /* замещение будет на следующем шаге */
+            frame = find_frame_to_free(mem);
+            unload_page(mem, frame);
         }
         load_page(mem, page_num, frame);
     }

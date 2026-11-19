@@ -14,7 +14,13 @@ typedef struct {
     int frame_num;   /* в каком кадре лежит (если in_memory = 1) */
     int used;        /* было ли обращение */
     int changed;     /* 1 -- в страницу писали, при вытеснении сохраняем на диск */
+    int load_time;
 } Page;
+
+/* алгоритм замещения */
+typedef enum {
+    ALGO_FIFO
+} Algorithm;
 
 /* Вся память симулятора */
 typedef struct {
@@ -22,9 +28,12 @@ typedef struct {
     int frames_count;   /* сколько кадров в оперативной памяти */
     Page *pages;        /* таблица страниц, pages_count штук */
     int *frames;        /* frames[i] - какая страница в кадре i */
+    Algorithm algo;     /* алгоритм замещения */
+    int time;
+    int removed_page;   /* что вытесняется после обращения ( или empty) */
 } Memory;
 
-Memory *create_memory(int pages_count, int frames_count);
+Memory *create_memory(int pages_count, int frames_count, Algorithm algo);
 
 void free_memory(Memory *mem);
 
@@ -35,7 +44,7 @@ void print_memory(const Memory *mem);
 /* что получилось при обращении */
 #define HIT         0    /* страница уже была в памяти */
 #define PAGE_FAULT  1    /* страницы не было -- загрузили */
-#define ACCESS_ERR (-1)  /* плохой адрес либо нет свободного кадра */
+#define ACCESS_ERR (-1)  /* страницы с таким номером нет */
 
 /*
  * Обращение к странице page_num

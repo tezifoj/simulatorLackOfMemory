@@ -17,7 +17,7 @@ int main(void) {
            (unsigned long)addr, (unsigned long)page, (unsigned long)offset);
 
     /* память на 8 страниц и 3 кадра */
-    Memory *mem = create_memory(8, 3);
+    Memory *mem = create_memory(8, 3, ALGO_FIFO);
     if (mem == NULL) {
         printf("не получилось создать память\n");
         return 1;
@@ -39,14 +39,57 @@ int main(void) {
         if (res == HIT) {
             printf("hit, физ. адрес 0x%04lX\n", (unsigned long)phys);
         } else if (res == PAGE_FAULT) {
-            printf("page fault, загрузили, физ. адрес 0x%04lX\n", (unsigned long)phys);
+            printf("page fault, физ. адрес 0x%04lX", (unsigned long)phys);
+            if (mem->removed_page != EMPTY) {
+                printf(", убрали стр. %d", mem->removed_page);
+            }
+            printf("\n");
         } else {
-            printf("ошибка (нет свободного кадра)\n");
+            printf("ошибка (нет такой страницы)\n");
         }
     }
     printf("\n");
 
     print_memory(mem);
+    free_memory(mem);
+
+    printf("\n--- FIFO, 3 кадра ---\n");
+
+    mem = create_memory(8, 3, ALGO_FIFO);
+    if (mem == NULL) {
+        printf("не получилось создать память\n");
+        return 1;
+    }
+
+    /* номера страниц, к которым обращаемся */
+    int refs[] = {7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1};
+    int refs_count = sizeof(refs) / sizeof(refs[0]);
+    int faults = 0;
+
+    for (int i = 0; i < refs_count; i++) {
+        /* из номера страницы создаем адрес: страница + смещение */
+        uint64_t a = ((uint64_t)refs[i] << OFFSET_BITS) | 0x10;
+        uint64_t phys = 0;
+        int res = translate(mem, a, 0, &phys);
+
+        printf("стр. %d: ", refs[i]);
+
+        if (res == HIT) {
+            printf("hit\n");
+        } else if (res == PAGE_FAULT) {
+            faults++;
+            printf("fault -> кадр %d", mem->pages[refs[i]].frame_num);
+            if (mem->removed_page != EMPTY) {
+                printf(", убрали стр %d", mem->removed_page);
+            }
+            printf("\n");
+        } else {
+            printf("ошибка\n");
+        }
+    }
+
+    printf("\nвсего page fault: %d из %d\n", faults, refs_count);
+
     free_memory(mem);
 
     return 0;
