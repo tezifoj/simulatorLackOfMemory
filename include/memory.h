@@ -3,8 +3,9 @@
  */
 
 #ifndef MEMORY_H
-#include <stdint.h>
 #define MEMORY_H
+
+#include <stdint.h>
 
 #define EMPTY (-1)   /* кадр свободен либо страница не в кадре */
 
@@ -15,11 +16,13 @@ typedef struct {
     int used;        /* было ли обращение */
     int changed;     /* 1 -- в страницу писали, при вытеснении сохраняем на диск */
     int load_time;
+    int last_used;
 } Page;
 
 /* алгоритм замещения */
 typedef enum {
-    ALGO_FIFO
+    ALGO_FIFO,
+    ALGO_LRU
 } Algorithm;
 
 /* Вся память симулятора */

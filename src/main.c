@@ -7,6 +7,52 @@
 #include "addr.h"
 #include "memory.h"
 
+
+static const char *algo_name(Algorithm algo) {
+    switch (algo) {
+        case ALGO_FIFO: return "FIFO";
+        case ALGO_LRU:  return "LRU";
+    }
+    return "?";
+}
+
+static int run_refs(Algorithm algo, int frames_count, const int *refs, int n) {
+    Memory *mem = create_memory(8, frames_count, algo);
+    if (mem == NULL) {
+        printf("не получилось создать память\n");
+        return -1;
+    }
+
+    printf("\n--- %s, кадров: %d ---\n", algo_name(algo), frames_count);
+    int faults = 0;
+
+    for (int i = 0; i < n; i++) {
+        /* из номера страницы создаем адрес: страница + смещение */
+        uint64_t a = ((uint64_t)refs[i] << OFFSET_BITS) | 0x10;
+        uint64_t phys = 0;
+        int res = translate(mem, a, 0, &phys);
+
+        printf("стр. %d: ", refs[i]);
+
+        if (res == HIT) {
+            printf("hit\n");
+        } else if (res == PAGE_FAULT) {
+            faults++;
+            printf("fault -> кадр %d", mem->pages[refs[i]].frame_num);
+            if (mem->removed_page != EMPTY) {
+                printf(", убрали стр %d", mem->removed_page);
+            }
+            printf("\n");
+        } else {
+            printf("ошибка\n");
+        }
+    }
+
+    printf("всего page fault: %d из %d\n", faults, n);
+    free_memory(mem);
+    return faults;
+}
+
 int main(void) {
     uint64_t addr = 0x3A7F;      /* тестовый виртуальный адрес */
 
@@ -53,44 +99,13 @@ int main(void) {
     print_memory(mem);
     free_memory(mem);
 
-    printf("\n--- FIFO, 3 кадра ---\n");
-
-    mem = create_memory(8, 3, ALGO_FIFO);
-    if (mem == NULL) {
-        printf("не получилось создать память\n");
-        return 1;
-    }
-
-    /* номера страниц, к которым обращаемся */
     int refs[] = {7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1};
     int refs_count = sizeof(refs) / sizeof(refs[0]);
-    int faults = 0;
 
-    for (int i = 0; i < refs_count; i++) {
-        /* из номера страницы создаем адрес: страница + смещение */
-        uint64_t a = ((uint64_t)refs[i] << OFFSET_BITS) | 0x10;
-        uint64_t phys = 0;
-        int res = translate(mem, a, 0, &phys);
+    int fifo = run_refs(ALGO_FIFO, 3, refs, refs_count);
+    int lru  = run_refs(ALGO_LRU, 3, refs, refs_count);
 
-        printf("стр. %d: ", refs[i]);
-
-        if (res == HIT) {
-            printf("hit\n");
-        } else if (res == PAGE_FAULT) {
-            faults++;
-            printf("fault -> кадр %d", mem->pages[refs[i]].frame_num);
-            if (mem->removed_page != EMPTY) {
-                printf(", убрали стр %d", mem->removed_page);
-            }
-            printf("\n");
-        } else {
-            printf("ошибка\n");
-        }
-    }
-
-    printf("\nвсего page fault: %d из %d\n", faults, refs_count);
-
-    free_memory(mem);
+    printf("\nитого: FIFO = %d, LRU = %d\n", fifo, lru);
 
     return 0;
 }

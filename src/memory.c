@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "memory.h"
 #include "addr.h"
+#include "utils.h"
 
 Memory *create_memory(int pages_count, int frames_count, Algorithm algo) {
     if (pages_count <= 0 || frames_count <= 0) {
@@ -103,17 +104,22 @@ static void load_page(Memory *mem, int page_num, int frame_num) {
 
 /* FIFO: ищет кадр, где лежит страница, которую загрузили вначале */
 static int fifo_find_oldest(const Memory *mem) {
-    int oldest_frame = 0;
-    int oldest_time = mem->pages[mem->frames[0]].load_time;
+    int times[mem->frames_count];   /* время загрузки страницы в каждом кадре */
 
-    for (int i = 1; i < mem->frames_count; i++) {
-        int page_num = mem->frames[i];
-        if (mem->pages[page_num].load_time < oldest_time) {
-            oldest_time = mem->pages[page_num].load_time;
-            oldest_frame = i;
-        }
+    for (int i = 0; i < mem->frames_count; i++) {
+        times[i] = mem->pages[mem->frames[i]].load_time;
     }
-    return oldest_frame;
+    return find_min_index(times, mem->frames_count);   /* из utils.asm */
+}
+
+/* LRU: ищет кадр со страницей, к которой дольше всего не обращались */
+static int lru_find_oldest(const Memory *mem) {
+    int times[mem->frames_count];   /* время последнего обращения для каждого кадра */
+
+    for (int i = 0; i < mem->frames_count; i++) {
+        times[i] = mem->pages[mem->frames[i]].last_used;
+    }
+    return find_min_index(times, mem->frames_count);
 }
 
 /* какой кадр освободить */
@@ -121,6 +127,8 @@ static int find_frame_to_free(const Memory *mem) {
     switch (mem->algo) {
         case ALGO_FIFO:
             return fifo_find_oldest(mem);
+        case ALGO_LRU:
+            return lru_find_oldest(mem);
     }
     return 0;
 }
@@ -162,6 +170,7 @@ int access_page(Memory *mem, int page_num, int is_write) {
     }
 
     p->used = 1;
+    p->last_used = mem->time;   /* для LRU */
     if (is_write) {
         p->changed = 1;
     }
