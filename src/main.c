@@ -12,6 +12,7 @@ static const char *algo_name(Algorithm algo) {
     switch (algo) {
         case ALGO_FIFO: return "FIFO";
         case ALGO_LRU:  return "LRU";
+        case ALGO_CLOCK: return "Clock";
     }
     return "?";
 }
@@ -104,8 +105,9 @@ int main(void) {
 
     int fifo = run_refs(ALGO_FIFO, 3, refs, refs_count);
     int lru  = run_refs(ALGO_LRU, 3, refs, refs_count);
+    int clock = run_refs(ALGO_CLOCK, 3, refs, refs_count);
 
-    printf("\nитого: FIFO = %d, LRU = %d\n", fifo, lru);
+    printf("\nитого: FIFO = %d, LRU = %d, Clock = %d\n", fifo, lru, clock);
 
     return 0;
 }
