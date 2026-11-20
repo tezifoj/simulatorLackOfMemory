@@ -24,6 +24,7 @@ Memory *create_memory(int pages_count, int frames_count, Algorithm algo) {
     mem->algo = algo;
     mem->time = 0;
     mem->removed_page = EMPTY;
+    mem->clock_hand = 0;
 
     mem->pages = calloc(pages_count, sizeof(Page));
     mem->frames = malloc(frames_count * sizeof(int));
@@ -122,13 +123,32 @@ static int lru_find_oldest(const Memory *mem) {
     return find_min_index(times, mem->frames_count);
 }
 
+/* Clock */
+static int clock_find_frame(Memory *mem) {
+    int used[mem->frames_count];   /* бит обращения для каждого кадра */
+
+    for (int i = 0; i < mem->frames_count; i++) {
+        used[i] = mem->pages[mem->frames[i]].used;
+    }
+
+    int frame = clock_find(used, mem->frames_count, &mem->clock_hand);
+
+    /* после того как asm сбросил часть битов записываем их обратно в таблицу страниц */
+    for (int i = 0; i < mem->frames_count; i++) {
+        mem->pages[mem->frames[i]].used = used[i];
+    }
+    return frame;
+}
+
 /* какой кадр освободить */
-static int find_frame_to_free(const Memory *mem) {
+static int find_frame_to_free(Memory *mem) {
     switch (mem->algo) {
         case ALGO_FIFO:
             return fifo_find_oldest(mem);
         case ALGO_LRU:
             return lru_find_oldest(mem);
+        case ALGO_CLOCK:
+            return clock_find_frame(mem);
     }
     return 0;
 }

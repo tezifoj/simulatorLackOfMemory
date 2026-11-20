@@ -22,7 +22,8 @@ typedef struct {
 /* алгоритм замещения */
 typedef enum {
     ALGO_FIFO,
-    ALGO_LRU
+    ALGO_LRU,
+    ALGO_CLOCK
 } Algorithm;
 
 /* Вся память симулятора */
@@ -34,6 +35,7 @@ typedef struct {
     Algorithm algo;     /* алгоритм замещения */
     int time;
     int removed_page;   /* что вытесняется после обращения ( или empty) */
+    int clock_hand;
 } Memory;
 
 Memory *create_memory(int pages_count, int frames_count, Algorithm algo);
