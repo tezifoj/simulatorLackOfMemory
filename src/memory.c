@@ -25,6 +25,9 @@ Memory *create_memory(int pages_count, int frames_count, Algorithm algo) {
     mem->time = 0;
     mem->removed_page = EMPTY;
     mem->clock_hand = 0;
+    mem->hits = 0;
+    mem->faults = 0;
+    mem->disk_writes = 0;
 
     mem->pages = calloc(pages_count, sizeof(Page));
     mem->frames = malloc(frames_count * sizeof(int));
@@ -158,6 +161,10 @@ static void unload_page(Memory *mem, int frame_num) {
     int page_num = mem->frames[frame_num];
     Page *p = &mem->pages[page_num];
 
+    if (p->changed) {
+        mem->disk_writes++;   /* сохранение на диск при записи на странице */
+    }
+
     p->in_memory = 0;
     p->frame_num = EMPTY;
     p->used = 0;
@@ -194,6 +201,12 @@ int access_page(Memory *mem, int page_num, int is_write) {
     if (is_write) {
         p->changed = 1;
     }
+    if (result == HIT) {
+        mem->hits++;
+    } else {
+        mem->faults++;
+    }
+
     return result;
 }
 

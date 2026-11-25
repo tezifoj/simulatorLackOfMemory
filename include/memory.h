@@ -36,6 +36,9 @@ typedef struct {
     int time;
     int removed_page;   /* что вытесняется после обращения ( или empty) */
     int clock_hand;
+    int hits;
+    int faults;         /* сколько было page fault */
+    int disk_writes;    /* сколько раз выгрузили изменённую страницу */
 } Memory;
 
 Memory *create_memory(int pages_count, int frames_count, Algorithm algo);

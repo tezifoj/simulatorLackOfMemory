@@ -11,4 +11,10 @@ int find_min_index(const int *values, int count);
  */
 int clock_find(int *used, int count, int *hand);
 
+/*
+ * part * 100 / total
+ * при total = 0 возвращает 0
+ */
+int calc_percent(int part, int total);
+
 #endif

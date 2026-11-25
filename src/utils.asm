@@ -1,6 +1,7 @@
 section .text
 global find_min_index
 global clock_find
+global calc_percent
 
 ; Возвращает индекс минимального элемента массива
 find_min_index:
@@ -46,6 +47,18 @@ clock_find:
     xor ecx, ecx
 .save:
     mov [rdx], ecx
+    ret
+
+; int calc_percent(int part, int total)
+; Возвращает part * 100 / total, если total = 0 -- возвращает 0
+calc_percent:
+    xor eax, eax
+    test esi, esi
+    jz .zero                ; на ноль делить нельзя
+    imul eax, edi, 100      ; eax = part * 100
+    cdq                     ; расширяем eax в edx:eax до 64-битного значения
+    idiv esi                ; eax = edx:eax / total, остаток пишем в edx
+.zero:
     ret
 
 section .note.GNU-stack noalloc noexec nowrite progbits

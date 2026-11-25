@@ -8,6 +8,14 @@
 #include "addr.h"
 #include "memory.h"
 #include "trace.h"
+#include "utils.h"
+
+/* результаты одного прогона */
+typedef struct {
+    int hits;
+    int faults;
+    int disk_writes;
+} Result;
 
 static const char *algo_name(Algorithm algo) {
     switch (algo) {
@@ -34,21 +42,28 @@ static int count_pages(const Trace *t) {
  * Прогоняет трассу t на памяти с frames_count кадрами и алгоритмом algo
  * Печатает каждый шаг, возвращает число page fault
  */
-static int run_trace(Algorithm algo, int frames_count, const Trace *t) {
+static Result run_trace(Algorithm algo, int frames_count, const Trace *t, int verbose) {
+    Result r = {0, 0, 0};
+
     Memory *mem = create_memory(count_pages(t), frames_count, algo);
     if (mem == NULL) {
         printf("не получилось создать память\n");
-        return -1;
+        return r;
     }
 
-    printf("\n--- %s, кадров: %d ---\n", algo_name(algo), frames_count);
-    int faults = 0;
+    if (verbose) {
+        printf("\n--- %s, кадров: %d ---\n", algo_name(algo), frames_count);
+    }
 
     for (int i = 0; i < t->count; i++) {
         Access a = t->items[i];
         uint64_t phys = 0;
         int res = translate(mem, a.addr, a.is_write, &phys);
         int page = (int)get_page_number(a.addr, OFFSET_BITS);
+
+        if (!verbose) {
+            continue;
+        }
 
         /* %04lX -- число unsigned long в шестнадцатеричном виде */
         printf("%c 0x%04lX (стр %d): ", a.is_write ? 'W' : 'R',
@@ -57,7 +72,6 @@ static int run_trace(Algorithm algo, int frames_count, const Trace *t) {
         if (res == HIT) {
             printf("hit, физ. 0x%04lX\n", (unsigned long)phys);
         } else if (res == PAGE_FAULT) {
-            faults++;
             printf("fault -> кадр %d, физ. 0x%04lX",
                    mem->pages[page].frame_num, (unsigned long)phys);
             if (mem->removed_page != EMPTY) {
@@ -69,12 +83,49 @@ static int run_trace(Algorithm algo, int frames_count, const Trace *t) {
         }
     }
 
-    printf("всего page fault: %d из %d\n", faults, t->count);
+    /* счётчики уже посчитала сама память в access_page */
+    r.hits = mem->hits;
+    r.faults = mem->faults;
+    r.disk_writes = mem->disk_writes;
+
+    if (verbose) {
+        printf("всего page fault: %d из %d\n", r.faults, t->count);
+    }
+
     free_memory(mem);
-    return faults;
+    return r;
+}
+
+/* одна строка таблицы статистики */
+static void print_result(Algorithm algo, Result r, int total) {
+    printf(" %-8s | %5d | %4d (%3d%%) | %7d\n",
+           algo_name(algo), r.faults, r.hits,
+           calc_percent(r.hits, total),   /* из utils.asm */
+           r.disk_writes);
+}
+
+/* сколько page fault у каждого алгоритма при 1, 2, 3, ... кадрах */
+static void compare_frames(const Trace *t) {
+    int max_frames = count_pages(t);   /* кадров больше, чем страниц*/
+    if (max_frames > 16) {
+        max_frames = 16;
+    }
+
+    printf("\npage fault при разном числе кадров:\n");
+    printf(" кадров | FIFO | LRU | Clock\n");
+    printf("--------+------+-----+------\n");
+
+    for (int f = 1; f <= max_frames; f++) {
+        Result fifo  = run_trace(ALGO_FIFO, f, t, 0);
+        Result lru   = run_trace(ALGO_LRU, f, t, 0);
+        Result clock = run_trace(ALGO_CLOCK, f, t, 0);
+
+        printf(" %6d | %4d | %3d | %5d\n", f, fifo.faults, lru.faults, clock.faults);
+    }
 }
 
 int main(int argc, char *argv[]) {
+    /* запуск: ./vmsim файл_трассы [кадров] */
     if (argc < 2) {
         printf("запуск: %s файл_трассы [кадров]\n", argv[0]);
         return 1;
@@ -103,11 +154,18 @@ int main(int argc, char *argv[]) {
     printf("файл: %s, обращений: %d, кадров: %d\n", argv[1], t->count, frames);
 
     /* одна и та же трасса на трёх алгоритмах */
-    int fifo  = run_trace(ALGO_FIFO, frames, t);
-    int lru   = run_trace(ALGO_LRU, frames, t);
-    int clock = run_trace(ALGO_CLOCK, frames, t);
+    Result fifo  = run_trace(ALGO_FIFO, frames, t, 1);
+    Result lru   = run_trace(ALGO_LRU, frames, t, 1);
+    Result clock = run_trace(ALGO_CLOCK, frames, t, 1);
 
-    printf("\nитого: FIFO = %d, LRU = %d, Clock = %d\n", fifo, lru, clock);
+    printf("\nстатистика (кадров: %d, обращений: %d):\n", frames, t->count);
+    printf(" алгоритм | fault |    hit      | на диск\n");
+    printf("----------+-------+-------------+--------\n");
+    print_result(ALGO_FIFO, fifo, t->count);
+    print_result(ALGO_LRU, lru, t->count);
+    print_result(ALGO_CLOCK, clock, t->count);
+
+    compare_frames(t);
 
     free_trace(t);
     return 0;
