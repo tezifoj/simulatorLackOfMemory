@@ -5,10 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include "addr.h"
 #include "memory.h"
 #include "trace.h"
 #include "utils.h"
+#include "view.h"
 
 /* результаты одного прогона */
 typedef struct {
@@ -124,10 +126,47 @@ static void compare_frames(const Trace *t) {
     }
 }
 
+/* перевод строки fifo / lru / clock в алгоритм, иначе 0 */
+static int parse_algo(const char *s, Algorithm *algo) {
+    if (strcmp(s, "fifo") == 0)  { *algo = ALGO_FIFO;  return 1; }
+    if (strcmp(s, "lru") == 0)   { *algo = ALGO_LRU;   return 1; }
+    if (strcmp(s, "clock") == 0) { *algo = ALGO_CLOCK; return 1; }
+    return 0;
+}
+
+/* пошаговый режим: после каждого обращения показываем кадры и ждём Enter */
+static void run_steps(Algorithm algo, int frames_count, const Trace *t) {
+    Memory *mem = create_memory(count_pages(t), frames_count, algo);
+    if (mem == NULL) {
+        printf("не получилось создать память\n");
+        return;
+    }
+
+    printf("пошаговый режим: %s, кадров: %d\n", algo_name(algo), frames_count);
+
+    for (int i = 0; i < t->count; i++) {
+        uint64_t phys = 0;
+        int res = translate(mem, t->items[i].addr, t->items[i].is_write, &phys);
+        show_step(mem, i + 1, t->items[i], res);
+
+        /* после последнего шага не ждём */
+        if (i < t->count - 1 && !wait_key()) {
+            printf("выход\n");
+            break;
+        }
+    }
+
+    int total = mem->hits + mem->faults;
+    printf("\nитого: page fault %d, hit %d (%d%%), на диск %d\n",
+           mem->faults, mem->hits, calc_percent(mem->hits, total), mem->disk_writes);
+
+    free_memory(mem);
+}
+
 int main(int argc, char *argv[]) {
     /* запуск: ./vmsim файл_трассы [кадров] */
     if (argc < 2) {
-        printf("запуск: %s файл_трассы [кадров]\n", argv[0]);
+        printf("запуск: %s файл_трассы [кадров] [fifo|lru|clock]\n", argv[0]);
         return 1;
     }
 
@@ -152,6 +191,19 @@ int main(int argc, char *argv[]) {
     }
 
     printf("файл: %s, обращений: %d, кадров: %d\n", argv[1], t->count, frames);
+
+    /* если указан алгоритм -- пошаговый режим только для него */
+    if (argc >= 4) {
+        Algorithm algo;
+        if (!parse_algo(argv[3], &algo)) {
+            printf("алгоритм должен быть fifo, lru или clock\n");
+            free_trace(t);
+            return 1;
+        }
+        run_steps(algo, frames, t);
+        free_trace(t);
+        return 0;
+    }
 
     /* одна и та же трасса на трёх алгоритмах */
     Result fifo  = run_trace(ALGO_FIFO, frames, t, 1);

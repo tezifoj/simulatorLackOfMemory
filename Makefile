@@ -10,7 +10,7 @@ ASMFLAGS = -f elf64 -g -F dwarf
 all: vmsim
 
 # линкуем объектные файлы в программу
-vmsim: build/main.o build/addr.o build/memory.o build/utils.o build/trace.o
+vmsim: build/main.o build/addr.o build/memory.o build/utils.o build/trace.o build/view.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 # сборка для C-файлов: src/x.c -> build/x.o
