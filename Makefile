@@ -21,9 +21,25 @@ build/%.o: src/%.c | build
 build/%.o: src/%.asm | build
 	$(ASM) $(ASMFLAGS) $< -o $@
 
+# как собирать тесты: tests/x.c -> build/x.o
+build/%.o: tests/%.c | build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# тесты: всё, кроме main.o и view.o
+TEST_OBJS = build/test_main.o build/addr.o build/memory.o build/utils.o build/trace.o
+
+run_tests: $(TEST_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+# make test - собрать и запустить тесты
+test: run_tests
+	./run_tests
+
 # создаём папку для объектных файлов
 build:
 	mkdir -p build
 
 clean:
-	rm -rf build vmsim
+	rm -rf build vmsim run_tests
+
+.PHONY: all clean test
