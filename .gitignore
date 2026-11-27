@@ -2,3 +2,4 @@ build/
 vmsim
 .idea/
 run_tests
+gen_trace

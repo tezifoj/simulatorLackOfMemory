@@ -7,7 +7,7 @@ CFLAGS = -Wall -Wextra -g -Iinclude   # предупреждения, отлад
 ASM = nasm
 ASMFLAGS = -f elf64 -g -F dwarf
 
-all: vmsim
+all: vmsim gen_trace
 
 # линкуем объектные файлы в программу
 vmsim: build/main.o build/addr.o build/memory.o build/utils.o build/trace.o build/view.o
@@ -35,11 +35,19 @@ run_tests: $(TEST_OBJS)
 test: run_tests
 	./run_tests
 
+# как собирать утилиты: tools/x.c -> build/x.o
+build/%.o: tools/%.c | build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# генератор трасс
+gen_trace: build/gen_trace.o
+	$(CC) $(CFLAGS) -o $@ $^
+
 # создаём папку для объектных файлов
 build:
 	mkdir -p build
 
 clean:
-	rm -rf build vmsim run_tests
+	rm -rf build vmsim run_tests gen_trace
 
 .PHONY: all clean test
